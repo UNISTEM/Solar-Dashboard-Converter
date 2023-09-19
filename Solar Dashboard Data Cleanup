@@ -1,0 +1,124 @@
+import pandas as pd
+import os
+import datetime
+list = ["B2","B4","B6"]
+def combine_dataset(building):
+    path = "C:\\Users\\araha\\Downloads\\Solar Data " + building
+    out = []
+    for file in os.listdir(path):
+        df = pd.read_csv(path+"\\"+file)
+        values = df.values.flatten()
+        for v in values:
+            v = v.split(";")[1]
+            if v == " ":
+                v = 0.0
+            else:
+                v = float(v)
+            out.append(v)
+    reversed = out[::-1]
+    del reversed[0]
+    reversed = reversed+[0.0]
+    return reversed
+def combine_buildings(Buildings,total=False):
+    output = pd.DataFrame()
+    for building in Buildings:
+        output[building+" (kW)"] = combine_dataset(building)
+    if total:
+        C = [combine_dataset(l) for l in list]
+        total_values = [sum(x) for x in zip(*C)]
+        total_df = pd.DataFrame(total_values,columns=["Total (kW)"])
+        output = pd.concat((output,total_df),axis = 1)
+    return output
+def sum_chunk(l,n):
+    return [round(sum(l[i:i+n])/4,3) for i in range(0,len(l),n)]
+
+def combine_buildings_chunked(Buildings,n,total=False):
+    output = pd.DataFrame()
+    for building in Buildings:
+        output[building + " (kW)"] = sum_chunk(combine_dataset(building),n)
+    if total:
+        C = [sum_chunk(combine_dataset(l),n) for l in list]
+        total_values = [sum(x) for x in zip(*C)]
+        total_df = pd.DataFrame(total_values,columns=["Total (kW)"])
+        output = pd.concat((output,total_df),axis = 1)
+    return output
+def date_time_series(length,time_step,time = True):
+    date_array = []
+    time_array = []
+    d_i = datetime.datetime(2023, 1, 1, 0, 0)
+    time_change = datetime.timedelta(minutes=time_step)
+    date_array.append(d_i.strftime("%d/%m/%Y"))
+    time_array.append(d_i.strftime("%H:%M"))
+    for i in range(length-1):
+        d_f = d_i + time_change
+        date_array.insert(0,d_f.strftime("%d/%m/%Y"))
+        time_array.insert(0,d_f.strftime("%H:%M"))
+        d_i = d_f
+    if time:
+        out = [[a]+[b] for a,b in zip(date_array,time_array)]
+        cols = ["Date","Time"]
+    else:
+        out = date_array
+        cols = ["Date"]
+    df = pd.DataFrame(out, columns=cols)
+    return df
+
+def minutedataset(Buildings,total = False):
+    final_df = combine_buildings(Buildings,total)
+    length = len(final_df)
+    df = date_time_series(length,15,time=True)
+    final_df = pd.concat((df,final_df),axis=1)
+    return final_df
+def hourdataset(Buildings,total=False):
+    final_df = combine_buildings_chunked(Buildings,4,total)
+    length = len(final_df)
+    df = date_time_series(length, 60, time=True)
+    final_df = pd.concat((df, final_df), axis=1)
+    return final_df
+def daily_dataset(Buildings,total = False):
+    final_df = combine_buildings_chunked(Buildings,96, total)
+    length = len(final_df)
+    df = date_time_series(length, 1440, time=False)
+    final_df = pd.concat((df, final_df), axis=1)
+    return final_df
+def date_converter(Date):
+    year = int(Date[-4:])
+    day = int(Date[:2])
+    month = int(Date[3:5])
+    return datetime.date(year,month,day)
+def customdataset(time_gradation,start_date,end_date,Buildings,total = False):
+    scale_factor = 0
+    if time_gradation == "Minutes":
+        dataset = minutedataset(Buildings,total)
+        scale_factor += 96
+    if time_gradation == "Hours":
+        dataset = hourdataset(Buildings,total)
+        scale_factor += 24
+    if time_gradation == "Days":
+        dataset = daily_dataset(Buildings,total)
+        scale_factor += 1
+    if scale_factor == 0:
+        raise Exception("Please Input a Valid Time Gradation (Minutes, Hours, Days)")
+    current_date = date_converter(dataset["Date"].iloc[0])
+    start_date_new = date_converter(start_date)
+    end_date_new = date_converter(end_date)
+    delta_1 = current_date-start_date_new
+    delta_2 = current_date-end_date_new
+    if delta_2.days < delta_1.days or delta_1.days < 0 or delta_2.days < 0:
+        raise Exception("Please Input a Valid Date Range")
+    position_1 = delta_1.days*scale_factor
+    position_2 = (delta_2.days+1)*scale_factor-1
+    rows = dataset.loc[position_1:position_2]
+    rows.reset_index(inplace=True,drop=True)
+    return rows
+total_energy = sum(sum(combine_dataset(l)) for l in list)/4
+num_yrs = len(combine_dataset("B2"))/(96*365)
+print(f"Total Energy Produced: {round(total_energy/1000,3)} MWh")
+print(minutedataset(["B2","B4","B6"],total=True))
+#print(f"Total CO2 Saved: {round(total_energy*0.7/1000,3)} tonnes")
+#print(f"Trees Saved: {round(total_energy*0.7/(25*num_yrs),0)}")
+#print(f"Classrooms powered: {round(total_energy/(6*num_yrs*365*8))}")
+#print(f"Money Saved: ${round(total_energy*1805/24165,2)}")
+
+
+
