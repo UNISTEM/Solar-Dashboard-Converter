@@ -19,6 +19,7 @@ def combine_dataset(building):
     del reversed[0]
     reversed = reversed+[0.0]
     return reversed
+
 def combine_buildings(Buildings,total=False):
     output = pd.DataFrame()
     for building in Buildings:
@@ -29,6 +30,7 @@ def combine_buildings(Buildings,total=False):
         total_df = pd.DataFrame(total_values,columns=["Total (kW)"])
         output = pd.concat((output,total_df),axis = 1)
     return output
+
 def sum_chunk(l,n):
     return [round(sum(l[i:i+n])/4,3) for i in range(0,len(l),n)]
 
@@ -42,6 +44,7 @@ def combine_buildings_chunked(Buildings,n,total=False):
         total_df = pd.DataFrame(total_values,columns=["Total (kW)"])
         output = pd.concat((output,total_df),axis = 1)
     return output
+
 def date_time_series(length,time_step,time = True):
     date_array = []
     time_array = []
@@ -69,23 +72,27 @@ def minutedataset(Buildings,total = False):
     df = date_time_series(length,15,time=True)
     final_df = pd.concat((df,final_df),axis=1)
     return final_df
+
 def hourdataset(Buildings,total=False):
     final_df = combine_buildings_chunked(Buildings,4,total)
     length = len(final_df)
     df = date_time_series(length, 60, time=True)
     final_df = pd.concat((df, final_df), axis=1)
     return final_df
+
 def daily_dataset(Buildings,total = False):
     final_df = combine_buildings_chunked(Buildings,96, total)
     length = len(final_df)
     df = date_time_series(length, 1440, time=False)
     final_df = pd.concat((df, final_df), axis=1)
     return final_df
+
 def date_converter(Date):
     year = int(Date[-4:])
     day = int(Date[:2])
     month = int(Date[3:5])
     return datetime.date(year,month,day)
+
 def customdataset(time_gradation,start_date,end_date,Buildings,total = False):
     scale_factor = 0
     if time_gradation == "Minutes":
@@ -111,6 +118,7 @@ def customdataset(time_gradation,start_date,end_date,Buildings,total = False):
     rows = dataset.loc[position_1:position_2]
     rows.reset_index(inplace=True,drop=True)
     return rows
+
 total_energy = sum(sum(combine_dataset(l)) for l in list)/4
 num_yrs = len(combine_dataset("B2"))/(96*365)
 print(f"Total Energy Produced: {round(total_energy/1000,3)} MWh")
