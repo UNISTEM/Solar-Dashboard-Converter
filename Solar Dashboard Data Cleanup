@@ -71,7 +71,7 @@ def minutedataset(Buildings,total = False):
     length = len(data)
     times,cols_2 = date_time_series(length,15,time=True)
     new_cols = cols_2+cols_1
-    total_data = [a+b for a,b in zip(times,data)]
+    total_data = [[a]+b for a,b in zip(times,data)]
     return total_data,new_cols
 
 def hourdataset(Buildings,total=False):
