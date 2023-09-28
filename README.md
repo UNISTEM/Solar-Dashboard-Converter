@@ -3,7 +3,6 @@ This Python script provided is used to process and analyze solar data from diffe
 Dependencies
 
 #This script requires the following Python libraries:
-pandas
 os
 datetime
 csv
