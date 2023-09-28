@@ -1,4 +1,3 @@
-import pandas as pd
 import os
 import datetime
 import csv
@@ -21,6 +20,7 @@ def combine_dataset(building):
     del reversed[0]
     reversed = reversed+[0.0]
     return reversed
+
 def combine_buildings(Buildings,total=False):
     raw_data = [combine_dataset(building) for building in Buildings]
     cols = [building+" (kW)" for building in Buildings]
@@ -30,8 +30,8 @@ def combine_buildings(Buildings,total=False):
         total_values = [sum(x) for x in zip(*C)]
         output = [o+[t] for o,t in zip(output,total_values)]
         cols = cols+["Total (kW)"]
-    df = pd.DataFrame(output,columns=cols)
-    return df
+    return output,cols
+
 def sum_chunk(l,n):
     return [round(sum(l[i:i+n])/4,3) for i in range(0,len(l),n)]
 
@@ -44,8 +44,8 @@ def combine_buildings_chunked(Buildings,n,total=False):
         total_values = [sum(x) for x in zip(*C)]
         output = [o+[t] for o,t in zip(output,total_values)]
         cols = cols + ["Total (kW)"]
-    df = pd.DataFrame(output, columns=cols)
-    return df
+    return output,cols
+
 def date_time_series(length,time_step,time = True):
     date_array = []
     time_array = []
@@ -64,60 +64,72 @@ def date_time_series(length,time_step,time = True):
     else:
         out = date_array
         cols = ["Date"]
-    df = pd.DataFrame(out, columns=cols)
-    return df
+    return out,cols
 
 def minutedataset(Buildings,total = False):
-    final_df = combine_buildings(Buildings,total)
-    length = len(final_df)
-    df = date_time_series(length,15,time=True)
-    final_df = pd.concat((df,final_df),axis=1)
-    return final_df
+    data,cols_1 = combine_buildings(Buildings,total)
+    length = len(data)
+    times,cols_2 = date_time_series(length,15,time=True)
+    new_cols = cols_2+cols_1
+    total_data = [a+b for a,b in zip(times,data)]
+    return total_data,new_cols
+
 def hourdataset(Buildings,total=False):
-    final_df = combine_buildings_chunked(Buildings,4,total)
-    length = len(final_df)
-    df = date_time_series(length, 60, time=True)
-    final_df = pd.concat((df, final_df), axis=1)
-    return final_df
+    data, cols_1 = combine_buildings_chunked(Buildings,4,total)
+    length = len(data)
+    times, cols_2 = date_time_series(length, 60, time=True)
+    new_cols = cols_2 + cols_1
+    total_data = [a + b for a, b in zip(times, data)]
+    return total_data, new_cols
+
 def daily_dataset(Buildings,total = False):
-    final_df = combine_buildings_chunked(Buildings,96, total)
-    length = len(final_df)
-    df = date_time_series(length, 1440, time=False)
-    final_df = pd.concat((df, final_df), axis=1)
-    return final_df
+    data, cols_1 = combine_buildings_chunked(Buildings,96,total)
+    length = len(data)
+    times, cols_2 = date_time_series(length, 1440, time=False)
+    new_cols = cols_2 + cols_1
+    total_data = [[a]+b for a,b in zip(times, data)]
+    return total_data, new_cols
+
 def date_converter(Date):
     year = int(Date[-4:])
     day = int(Date[:2])
     month = int(Date[3:5])
     return datetime.date(year,month,day)
+
 def customdataset(time_gradation,start_date,end_date,Buildings,total = False):
     scale_factor = 0
     if time_gradation == "Minutes":
-        dataset = minutedataset(Buildings,total)
+        dataset,headers = minutedataset(Buildings,total)
         scale_factor += 96
     if time_gradation == "Hours":
-        dataset = hourdataset(Buildings,total)
+        dataset,headers = hourdataset(Buildings,total)
         scale_factor += 24
     if time_gradation == "Days":
-        dataset = daily_dataset(Buildings,total)
+        dataset,headers = daily_dataset(Buildings,total)
         scale_factor += 1
     if scale_factor == 0:
         raise Exception("Please Input a Valid Time Gradation (Minutes, Hours, Days)")
-    current_date = date_converter(dataset["Date"].iloc[0])
+    current_date = date_converter(dataset[0][0])
     start_date_new = date_converter(start_date)
     end_date_new = date_converter(end_date)
     delta_1 = current_date - end_date_new
-    delta_2 = current_date-start_date_new
+    delta_2 = current_date - start_date_new
     if delta_2.days > delta_1.days or delta_1.days < 0 or delta_2.days < 0:
         raise Exception("Please Input a Valid Date Range")
     position_1 = delta_1.days*scale_factor
     position_2 = (delta_2.days+1)*scale_factor-1
-    rows = dataset.loc[position_1:position_2]
-    rows.reset_index(inplace=True,drop=True)
-    return rows
+    rows = dataset[position_1:position_2]
+    return rows,headers
+
+def csv_construct(data,cols):
+    with open('data.csv', 'w', encoding='UTF8', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(cols)
+        writer.writerows(data)
+
 import time
 start = time.time()
-daily_dataset(["B2","B4","B6"],total=True)
+data, cols = daily_dataset(["B2","B4","B6"],total=True)
 end = time.time()
 print(f"Function: {(end-start)*1000} ms")
 num_yrs = len(combine_dataset("B2"))/(96*365)
