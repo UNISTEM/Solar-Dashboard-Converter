@@ -65,6 +65,24 @@ def date_time_series(length,time_step,time = True):
         out = date_array
         cols = ["Date"]
     return out,cols
+def month_series(days):
+    interval_list = []
+    month_list = ["Jan 2023"]
+    d_i = datetime.datetime(2023, 1, 1, 0, 0)
+    delta = datetime.timedelta(days=1)
+    count = days
+    for day in range(days):
+        d_f = d_i+delta
+        if d_f.month == d_i.month:
+            count -= 1
+        else:
+            month_list.append(d_f.strftime("%b")+" "+d_i.strftime("%Y"))
+            interval_list.append(count*96)
+            count -= 1
+        d_i = d_f
+    return month_list[::-1],[0]+interval_list[::-1]+[days*96]
+def sum_from_list(data, index_list):
+    return [round(sum(data[n_1:n_2])/4000,3) for n_1,n_2 in zip(index_list[:-1],index_list[1:])]
 
 def minutedataset(Buildings,total = False):
     data,cols_1 = combine_buildings(Buildings,total)
@@ -89,6 +107,19 @@ def daily_dataset(Buildings,total = False):
     new_cols = cols_2 + cols_1
     total_data = [[a]+b for a,b in zip(times, data)]
     return total_data, new_cols
+
+def monthly_dataset(Buildings,total = False):
+    columns = ["Month"]+[building + " (MWh)" for building in Buildings]
+    length = len(combine_dataset(Buildings[0]))
+    months, idx = month_series(int(length/96))
+    raw_data = [months]+[sum_from_list(combine_dataset(building),idx) for building in Buildings]
+    output = [list(x) for x in zip(*raw_data)]
+    if total:
+        C = [sum_from_list(combine_dataset(l),idx) for l in PV_list]
+        total_values = [sum(x) for x in zip(*C)]
+        output = [o+[t] for o,t in zip(output,total_values)]
+        columns = columns + ["Total (MWh)"]
+    return output, columns
 
 def date_converter(Date):
     year = int(Date[-4:])
@@ -127,14 +158,9 @@ def csv_construct(data,cols):
         writer.writerow(cols)
         writer.writerows(data)
 
-import time
-start = time.time()
-data, cols = daily_dataset(["B2","B4","B6"],total=True)
-end = time.time()
-print(f"Function: {(end-start)*1000} ms")
 num_yrs = len(combine_dataset("B2"))/(96*365)
 total_energy = sum(sum(combine_dataset(l)) for l in PV_list)/4 #Energy in kWh
-print(f"Total Energy Produced: {round(total_energy/1000,3)} MWh")
+#print(f"Total Energy Produced: {round(total_energy/1000,3)} MWh")
 #print(f"Total CO2 Saved: {round(total_energy*0.7/1000,3)} tonnes")
 #print(f"Trees Saved: {round(total_energy*0.7/(25*num_yrs),0)}")
 #print(f"Classrooms powered: {round(total_energy/(6*num_yrs*365*8))}")
